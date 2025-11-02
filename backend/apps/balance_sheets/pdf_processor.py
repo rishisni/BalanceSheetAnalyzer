@@ -38,10 +38,10 @@ class PDFProcessor:
         return '\n'.join(text_content), tables_content
     
     def extract_financial_data(self, pdf_file):
-        """Extract financial data from balance sheet PDF"""
+        """Extract financial data from balance sheet, P&L, and cash flow PDF"""
         text, tables = self.extract_text_and_tables(pdf_file)
         
-        # Basic extraction - looking for common financial terms
+        # Initialize full set of financial fields
         financial_data = {
             'total_assets': None,
             'current_assets': None,
@@ -52,43 +52,61 @@ class PDFProcessor:
             'total_equity': None,
             'revenue': None,
             'sales': None,
+            'operating_cash_flow': None,
+            'investing_cash_flow': None,
+            'financing_cash_flow': None,
+            'net_cash_flow': None,
+            'current_ratio': None,
+            'debt_to_equity': None,
+            'roe': None,
         }
         
-        # Simple keyword-based extraction from text
+        # Expanded keyword map
         keywords_map = {
-            'total_assets': ['total assets', 'total asset', 'total assets &'],
-            'current_assets': ['current assets', 'current asset'],
-            'non_current_assets': ['non-current assets', 'non-current asset', 'fixed assets'],
-            'total_liabilities': ['total liabilities', 'total liability'],
-            'current_liabilities': ['current liabilities', 'current liability'],
-            'non_current_liabilities': ['non-current liabilities', 'non-current liability'],
+            # Assets & Liabilities
+            'total_assets': ['total assets', 'total asset'],
+            'current_assets': ['current assets'],
+            'non_current_assets': ['non-current assets', 'fixed assets'],
+            'total_liabilities': ['total liabilities'],
+            'current_liabilities': ['current liabilities'],
+            'non_current_liabilities': ['non-current liabilities'],
             'total_equity': ['total equity', 'shareholders equity', 'share capital'],
-            'revenue': ['total revenue', 'revenue'],
-            'sales': ['total sales', 'sales'],
+            # Revenue
+            'revenue': ['total revenue', 'income', 'operating revenue'],
+            'sales': ['sales', 'turnover'],
+            # Cash flows
+            'operating_cash_flow': ['net cash from operating activities', 'cash from operations', 'operating activities'],
+            'investing_cash_flow': ['cash from investing activities', 'net cash used in investing'],
+            'financing_cash_flow': ['cash from financing activities', 'net cash used in financing'],
+            'net_cash_flow': ['net increase in cash', 'net decrease in cash', 'net cash flow'],
+            # Ratios
+            'current_ratio': ['current ratio'],
+            'debt_to_equity': ['debt to equity', 'debt-equity ratio'],
+            'roe': ['return on equity', 'roe']
         }
         
-        # Extract from text
+        # Keyword-based extraction from text
         lines = text.split('\n')
         for line in lines:
             line_lower = line.lower()
             for key, keywords in keywords_map.items():
                 for keyword in keywords:
                     if keyword in line_lower:
-                        # Try to extract number
                         value = self._extract_number_from_line(line)
-                        if value and financial_data[key] is None:
+                        if value is not None and financial_data[key] is None:
                             financial_data[key] = value
                         break
         
-        # If tables exist, try to extract from tables
-        if tables and len(tables) > 0:
-            # Process first table with financial data
-            table_data = self._extract_from_table(tables[0]['data'])
-            for key, value in table_data.items():
-                if financial_data[key] is None and value is not None:
-                    financial_data[key] = value
+        # Extract from tables (structured)
+        if tables:
+            for table in tables:
+                table_data = self._extract_from_table(table['data'])
+                for key, value in table_data.items():
+                    if financial_data[key] is None and value is not None:
+                        financial_data[key] = value
         
         return financial_data
+
     
     def _extract_number_from_line(self, line):
         """Extract number from a line of text"""
@@ -105,36 +123,46 @@ class PDFProcessor:
         return None
     
     def _extract_from_table(self, table_data):
-        """Extract financial data from table"""
+        """Extract structured financial data from a table"""
         financial_data = {}
-        
-        if not table_data:
-            return financial_data
-        
-        # Look for patterns in the table
-        for row in table_data:
-            if row and len(row) >= 2:
-                row_text = ' '.join([str(cell) for cell in row if cell]).lower()
-                # Try to match financial terms
-                if 'total assets' in row_text:
-                    value = self._extract_number_from_cells(row[1:])
-                    if value:
-                        financial_data['total_assets'] = value
-                elif 'current assets' in row_text:
-                    value = self._extract_number_from_cells(row[1:])
-                    if value:
-                        financial_data['current_assets'] = value
-                elif 'total liabilities' in row_text:
-                    value = self._extract_number_from_cells(row[1:])
-                    if value:
-                        financial_data['total_liabilities'] = value
-                elif 'total equity' in row_text or 'shareholders equity' in row_text:
-                    value = self._extract_number_from_cells(row[1:])
-                    if value:
-                        financial_data['total_equity'] = value
-        
+
+        for row in table_data or []:
+            if not row or len(row) < 2:
+                continue
+            
+            row_text = ' '.join([str(cell).lower() for cell in row if cell])
+
+            # Cash Flow
+            if 'operating activities' in row_text:
+                financial_data['operating_cash_flow'] = self._extract_number_from_cells(row[1:])
+            elif 'investing activities' in row_text:
+                financial_data['investing_cash_flow'] = self._extract_number_from_cells(row[1:])
+            elif 'financing activities' in row_text:
+                financial_data['financing_cash_flow'] = self._extract_number_from_cells(row[1:])
+            elif 'net increase' in row_text or 'net decrease' in row_text:
+                financial_data['net_cash_flow'] = self._extract_number_from_cells(row[1:])
+
+            # Ratios
+            elif 'current ratio' in row_text:
+                financial_data['current_ratio'] = self._extract_number_from_cells(row[1:])
+            elif 'debt to equity' in row_text or 'debt-equity' in row_text:
+                financial_data['debt_to_equity'] = self._extract_number_from_cells(row[1:])
+            elif 'return on equity' in row_text or 'roe' in row_text:
+                financial_data['roe'] = self._extract_number_from_cells(row[1:])
+
+            # Existing patterns (balance sheet)
+            elif 'total assets' in row_text:
+                financial_data['total_assets'] = self._extract_number_from_cells(row[1:])
+            elif 'current assets' in row_text:
+                financial_data['current_assets'] = self._extract_number_from_cells(row[1:])
+            elif 'total liabilities' in row_text:
+                financial_data['total_liabilities'] = self._extract_number_from_cells(row[1:])
+            elif 'total equity' in row_text or 'shareholders equity' in row_text:
+                financial_data['total_equity'] = self._extract_number_from_cells(row[1:])
+
         return financial_data
-    
+
+
     def _extract_number_from_cells(self, cells):
         """Extract number from table cells"""
         for cell in cells:

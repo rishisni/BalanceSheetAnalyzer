@@ -101,49 +101,67 @@ class GeminiPDFExtractor:
     
     def _create_extraction_prompt(self, extracted_text):
         """Create prompt for Gemini extraction."""
-        return f"""You are an expert financial data extraction specialist. Extract balance sheet data from this PDF document.
+        return f"""You are an expert financial analyst. Extract all key financial metrics from this company's balance sheet, income statement, and cash flow statement.
 
 Extracted PDF Content:
 {extracted_text}
 
-Extract the following financial data and return ONLY valid JSON:
+Extract the following data fields (return ONLY valid JSON):
 
-Fields to extract:
-- year: The financial year (integer, e.g., 2024)
-- quarter: Quarter if applicable (string like "Q1", "Q2", etc. or null)
-- currency_unit: Currency and unit (e.g., "INR Crores", "USD Millions")
-- total_assets: Total Assets value (number)
-- current_assets: Current Assets value (number or null)
-- non_current_assets: Non-Current Assets value (number or null)
-- total_liabilities: Total Liabilities value (number)
-- current_liabilities: Current Liabilities value (number or null)
-- non_current_liabilities: Non-Current Liabilities value (number or null)
-- total_equity: Total Equity / Shareholders' Equity value (number)
-- revenue: Revenue / Total Income value (number or null)
-- sales: Sales value (number or null)
+**General Info**
+- year (integer)
+- quarter (string like "Q1", "Q2", etc. or null)
+- currency_unit (e.g., "INR Crores", "USD Millions")
 
-CRITICAL RULES:
-1. Extract EXACT numbers as they appear in the document
-2. Verify: Total Assets MUST equal Total Liabilities + Total Equity (±0.01% tolerance)
-3. Return null for missing fields (not 0)
-4. For each field, provide a confidence score (0.0 to 1.0)
-5. Return ONLY valid JSON, no markdown, no explanations
+**Assets & Liabilities**
+- total_assets
+- current_assets
+- non_current_assets
+- total_liabilities
+- current_liabilities
+- non_current_liabilities
+- total_equity
 
-Expected JSON structure:
+**Income / Revenue**
+- revenue
+- sales
+
+**Cash Flow Statement**
+- operating_cash_flow
+- investing_cash_flow
+- financing_cash_flow
+- net_cash_flow
+
+**Key Ratios (if available or can be computed)**
+- current_ratio
+- debt_to_equity
+- roe
+
+**CRITICAL RULES:**
+1. Extract the **exact numeric values** as shown in the report (ignore commas or currency signs).
+2. If a value is missing or unclear, return `null` — not 0.
+3. Ensure `total_assets ≈ total_liabilities + total_equity` (±0.01%).
+4. Include a confidence score (0.0–1.0) for each extracted field.
+5. Return valid JSON only. No markdown, no extra text.
+
+**Expected JSON:**
 {{
-    "year": 2024,
-    "quarter": "Q4",
-    "currency_unit": "INR Crores",
-    "data": {{
-        "total_assets": {{"value": 1234567, "confidence": 0.95}},
-        "current_assets": {{"value": 500000, "confidence": 0.90}},
-        ...
-    }},
-    "validation": {{
-        "balance_check_passed": true,
-        "confidence_avg": 0.93
-    }}
+  "year": 2024,
+  "quarter": "Q4",
+  "currency_unit": "INR Crores",
+  "data": {{
+    "total_assets": {{"value": 1755986, "confidence": 0.97}},
+    "operating_cash_flow": {{"value": 27841, "confidence": 0.92}},
+    "current_ratio": {{"value": 1.52, "confidence": 0.88}},
+    "debt_to_equity": {{"value": 0.63, "confidence": 0.85}},
+    "roe": {{"value": 0.12, "confidence": 0.80}}
+  }},
+  "validation": {{
+    "balance_check_passed": true,
+    "confidence_avg": 0.93
+  }}
 }}"""
+
     
     def _parse_gemini_response(self, response):
         """Parse JSON response from Gemini, handling markdown-wrapped JSON."""
@@ -192,16 +210,33 @@ Expected JSON structure:
         
         # Extract financial data
         extracted_data = {
+            # Assets
             'total_assets': safe_extract(data_section, 'total_assets'),
             'current_assets': safe_extract(data_section, 'current_assets'),
             'non_current_assets': safe_extract(data_section, 'non_current_assets'),
+
+            # Liabilities & Equity
             'total_liabilities': safe_extract(data_section, 'total_liabilities'),
             'current_liabilities': safe_extract(data_section, 'current_liabilities'),
             'non_current_liabilities': safe_extract(data_section, 'non_current_liabilities'),
             'total_equity': safe_extract(data_section, 'total_equity'),
+
+            # Revenue
             'revenue': safe_extract(data_section, 'revenue'),
             'sales': safe_extract(data_section, 'sales'),
+
+            # Cash Flow
+            'operating_cash_flow': safe_extract(data_section, 'operating_cash_flow'),
+            'investing_cash_flow': safe_extract(data_section, 'investing_cash_flow'),
+            'financing_cash_flow': safe_extract(data_section, 'financing_cash_flow'),
+            'net_cash_flow': safe_extract(data_section, 'net_cash_flow'),
+
+            # Ratios
+            'current_ratio': safe_extract(data_section, 'current_ratio'),
+            'debt_to_equity': safe_extract(data_section, 'debt_to_equity'),
+            'roe': safe_extract(data_section, 'roe'),
         }
+
         
         # Extract confidence scores
         confidence_scores = {}

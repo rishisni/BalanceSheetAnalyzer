@@ -99,17 +99,32 @@ class BalanceSheetViewSet(viewsets.ModelViewSet):
         """Create FinancialData record from extracted data."""
         FinancialData.objects.create(
             balance_sheet=balance_sheet,
+            # Assets
             total_assets=financial_data.get('total_assets'),
             current_assets=financial_data.get('current_assets'),
             non_current_assets=financial_data.get('non_current_assets'),
+            # Liabilities
             total_liabilities=financial_data.get('total_liabilities'),
             current_liabilities=financial_data.get('current_liabilities'),
             non_current_liabilities=financial_data.get('non_current_liabilities'),
+            # Equity
             total_equity=financial_data.get('total_equity'),
+            # Income
             revenue=financial_data.get('revenue'),
             sales=financial_data.get('sales'),
+            # Cash flows
+            operating_cash_flow=financial_data.get('operating_cash_flow'),
+            investing_cash_flow=financial_data.get('investing_cash_flow'),
+            financing_cash_flow=financial_data.get('financing_cash_flow'),
+            net_cash_flow=financial_data.get('net_cash_flow'),
+            # Ratios
+            current_ratio=financial_data.get('current_ratio'),
+            debt_to_equity=financial_data.get('debt_to_equity'),
+            roe=financial_data.get('roe'),
+            # Additional flexible fields
             additional_data=additional_data
         )
+
     
     def _process_pdf_chunks(self, balance_sheet, pdf_file):
         """Process PDF into chunks and create embeddings for RAG."""
