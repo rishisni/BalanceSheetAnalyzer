@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { authAPI } from '../../services/api';
@@ -9,8 +9,14 @@ const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -19,12 +25,19 @@ const Login = () => {
 
     try {
       const response = await authAPI.login({ username, password });
-      const { access, refresh, user } = response.data;
+      const { access, refresh } = response.data;
+      
+      localStorage.setItem('access_token', access);
+      localStorage.setItem('refresh_token', refresh);
+      
+      const profileResponse = await authAPI.getProfile();
+      const user = profileResponse.data;
       
       login(access, refresh, user);
-      navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
     } finally {
       setLoading(false);
     }
