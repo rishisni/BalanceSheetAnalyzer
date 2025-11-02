@@ -17,6 +17,7 @@ google-auth-httplib2==0.2.1
 google-generativeai==0.8.5
 google-genai>=0.2.0  # New library for embeddings (text-embedding-004)
 PyMuPDF>=1.23.0  # For better PDF extraction (fitz)
+gunicorn
 googleapis-common-protos==1.71.0
 grpcio==1.76.0
 grpcio-status==1.71.2
